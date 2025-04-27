@@ -3,7 +3,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { notFound } from "next/navigation"
 import { ChevronLeft, X, MapPin, ExternalLink } from "lucide-react"
 
@@ -28,10 +28,13 @@ interface ExtendedFormData extends Partial<Store> {
   mapLink?: string
 }
 
-export default function EditStore({ params }: { params: { id: string } }) {
-  const storeId = params.id
+export default function EditStore() {
+  // Используем useParams для получения параметров маршрута
+  const params = useParams()
+  const storeId = typeof params?.id === "string" ? params.id : ""
+
   const router = useRouter()
-  const { toast: setToast } = useToast()
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [store, setStore] = useState<Store | null>(null)
@@ -62,6 +65,12 @@ export default function EditStore({ params }: { params: { id: string } }) {
 
   // Дэлгүүр болон ангилалуудыг авах
   useEffect(() => {
+    if (!storeId) {
+      console.error("Store ID is missing")
+      router.push("/admin/stores")
+      return
+    }
+
     const fetchData = async () => {
       try {
         setIsLoading(true)
@@ -91,6 +100,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
           reviews: storeData.reviews,
           image: storeData.image,
           gallery: storeData.gallery,
+          mapLink: storeData.mapLink || "",
         })
 
         // Хэрэв mapLink байвал түүнийг тохируулах
@@ -117,7 +127,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
         setCategories(categoriesData)
       } catch (error) {
         console.error("Дэлгүүрийн мэдээлэл авахад алдаа гарлаа:", error)
-        setToast({
+        toast({
           variant: "destructive",
           title: "Алдаа",
           description: "Дэлгүүрийн мэдээлэл авахад алдаа гарлаа",
@@ -128,7 +138,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
     }
 
     fetchData()
-  }, [storeId, setToast])
+  }, [storeId, router]) // Убрали toast из зависимостей, так как он меняется между рендерами
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -140,12 +150,19 @@ export default function EditStore({ params }: { params: { id: string } }) {
     setMapLink(link)
     setMapLinkError(null)
 
+    // Обновляем formData с новой ссылкой
+    setFormData({
+      ...formData,
+      mapLink: link,
+    })
+
     if (!link) return
 
     const coordinates = extractCoordinatesFromMapLink(link)
     if (coordinates) {
       setFormData({
         ...formData,
+        mapLink: link,
         location: coordinates,
       })
     } else {
@@ -157,11 +174,17 @@ export default function EditStore({ params }: { params: { id: string } }) {
     e.preventDefault()
     setIsSubmitting(true)
 
+    if (!storeId) {
+      setFormError("Дэлгүүрийн ID олдсонгүй")
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       // Хэрэв байршлын холбоос оруулсан бол координатуудыг ялгаж авах
       let locationData = formData.location
-      if (formData.mapLink) {
-        const extractedCoordinates = extractCoordinatesFromMapLink(formData.mapLink)
+      if (mapLink) {
+        const extractedCoordinates = extractCoordinatesFromMapLink(mapLink)
         if (extractedCoordinates) {
           locationData = extractedCoordinates
         }
@@ -176,13 +199,15 @@ export default function EditStore({ params }: { params: { id: string } }) {
       }
 
       // Хэрэв координатууд байгаа бол mapLink-ийг шинэчлэх
-      let mapLinkToSave = formData.mapLink
+      let mapLinkToSave = mapLink
       if (locationData && isValidCoordinates(locationData.lat, locationData.lng)) {
         // Хэрэв mapLink байхгүй эсвэл хоосон бол шинээр үүсгэх
         if (!mapLinkToSave || mapLinkToSave.trim() === "") {
           mapLinkToSave = generateMapLink(locationData.lat, locationData.lng)
         }
       }
+
+      console.log("Saving mapLink:", mapLinkToSave)
 
       // Store интерфейсийн шаардлагатай талбаруудыг шалгаж, хоосон утга байвал анхны утгаар дүүргэх
       if (!formData.name) {
@@ -232,7 +257,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
         hours: formData.hours,
         website: formData.website,
         location: locationData,
-        mapLink: mapLinkToSave,
+        mapLink: mapLinkToSave, // Сохраняем ссылку на Google Maps
         rating: formData.rating !== undefined ? Number(formData.rating) : 0,
         reviews: formData.reviews !== undefined ? Number(formData.reviews) : 0,
         services: services,
@@ -240,8 +265,10 @@ export default function EditStore({ params }: { params: { id: string } }) {
         gallery: galleryPreviews,
       }
 
+      console.log("Updating store with data:", updatedStore)
+
       await storeService.updateStore(storeId, updatedStore)
-      setToast({
+      toast({
         title: "Амжилттай",
         description: "Дэлгүүрийн мэдээлэл амжилттай шинэчлэгдлээ",
         variant: "default",
@@ -251,7 +278,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
       router.push("/admin/stores")
     } catch (error) {
       console.error("Дэлгүүр шинэчлэхэд алдаа гарлаа:", error)
-      setToast({
+      toast({
         title: "Алдаа гарлаа",
         description: "Дэлгүүрийн мэдээлэл шинэчлэхэд алдаа гарлаа. Дахин оролдоно уу.",
         variant: "destructive",
@@ -565,6 +592,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
                       <div className="relative flex-1">
                         <Input
                           id="mapLink"
+                          name="mapLink"
                           placeholder="https://www.google.com/maps?q=47.9184676,106.9177016"
                           value={mapLink}
                           onChange={handleMapLinkChange}
