@@ -299,11 +299,18 @@ export const storeService = {
         return false
       }
 
+      // Логируем данные для отладки
+      console.log("Existing store data:", snapshot.val())
+      console.log("New store data to update:", store)
+
       const updatedStore = {
         ...snapshot.val(),
         ...store,
         updatedAt: Date.now(),
       }
+
+      // Логируем финальные данные
+      console.log("Final updated store data:", updatedStore)
 
       await update(storeRef, updatedStore)
       return true
