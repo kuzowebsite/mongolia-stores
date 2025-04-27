@@ -130,11 +130,6 @@ export default function AdminLoginPage() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col items-center space-y-2">
-          <div className="text-xs text-muted-foreground">
-            <p>Туршилтын хэрэглэгч:</p>
-            <p>И-мэйл: admin@example.com</p>
-            <p>Нууц үг: admin123</p>
-          </div>
         </CardFooter>
       </Card>
     </div>
