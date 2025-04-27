@@ -143,14 +143,7 @@ export default function AdminStores() {
               <CardContent className="p-0">
                 <div className="relative h-48">
                   {store.image ? (
-                    <Image
-                      src={store.image || "/placeholder.svg"}
-                      alt={store.name}
-                      fill
-                      className="object-cover"
-                      width={500}
-                      height={500}
-                    />
+                    <Image src={store.image || "/placeholder.svg"} alt={store.name} fill className="object-cover" />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center bg-muted">
                       <Store className="h-12 w-12 text-muted-foreground" />
