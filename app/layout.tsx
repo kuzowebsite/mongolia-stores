@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import ClientLayout from "./ClientLayout"
+import "./globals.css"
 
 // Metadata can't be used in client components, so we need to define it separately
 export const metadata: Metadata = {
