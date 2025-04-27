@@ -1,5 +1,4 @@
 "use client"
-
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -22,7 +21,15 @@ import { useToast } from "@/components/ui/use-toast"
 import { storeService, categoryService, imageToBase64, type Store, type Category } from "@/lib/db-service"
 import { extractCoordinatesFromMapLink, isValidCoordinates, generateMapLink } from "@/lib/map-utils"
 
+// Нэмэлт талбаруудтай өргөтгөсөн формын өгөгдлийн интерфейс
+interface ExtendedFormData extends Partial<Store> {
+  latitude?: string
+  longitude?: string
+  mapLink?: string
+}
+
 export default function EditStore({ params }: { params: { id: string } }) {
+  const storeId = params.id
   const router = useRouter()
   const { toast: setToast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -37,7 +44,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
   const [selectedCategory, setSelectedCategory] = useState("")
   const [mapLink, setMapLink] = useState("")
   const [mapLinkError, setMapLinkError] = useState<string | null>(null)
-  const [formData, setFormData] = useState<Partial<Store>>({
+  const [formData, setFormData] = useState<ExtendedFormData>({
     name: "",
     category: "",
     description: "",
@@ -60,7 +67,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
         setIsLoading(true)
 
         // Дэлгүүрийн мэдээлэл авах
-        const storeData = await storeService.getStoreById(params.id)
+        const storeData = await storeService.getStoreById(storeId)
         if (!storeData) {
           notFound()
         }
@@ -80,6 +87,10 @@ export default function EditStore({ params }: { params: { id: string } }) {
             lat: 47.9184676,
             lng: 106.9177016,
           },
+          rating: storeData.rating,
+          reviews: storeData.reviews,
+          image: storeData.image,
+          gallery: storeData.gallery,
         })
 
         // Хэрэв mapLink байвал түүнийг тохируулах
@@ -117,7 +128,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
     }
 
     fetchData()
-  }, [params.id, setToast])
+  }, [storeId, setToast])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -148,7 +159,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
 
     try {
       // Хэрэв байршлын холбоос оруулсан бол координатуудыг ялгаж авах
-      let locationData = null
+      let locationData = formData.location
       if (formData.mapLink) {
         const extractedCoordinates = extractCoordinatesFromMapLink(formData.mapLink)
         if (extractedCoordinates) {
@@ -173,22 +184,67 @@ export default function EditStore({ params }: { params: { id: string } }) {
         }
       }
 
-      // Дэлгүүрийн мэдээллийг шинэчлэх
-      const updatedStore: Store = {
-        ...formData,
-        location: locationData,
-        mapLink: mapLinkToSave,
-        rating: Number.parseFloat(formData.rating as string) || 0,
-        reviews: Number.parseInt(formData.reviews as string) || 0,
-        services: formData.services || [],
-        gallery: formData.gallery || [],
+      // Store интерфейсийн шаардлагатай талбаруудыг шалгаж, хоосон утга байвал анхны утгаар дүүргэх
+      if (!formData.name) {
+        setFormError("Дэлгүүрийн нэр оруулна уу")
+        setIsSubmitting(false)
+        return
       }
 
-      await storeService.updateStore(params.id, updatedStore)
+      if (!formData.category) {
+        setFormError("Ангилал сонгоно уу")
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!formData.description) {
+        setFormError("Товч тайлбар оруулна уу")
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!formData.address) {
+        setFormError("Хаяг оруулна уу")
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!formData.phone) {
+        setFormError("Утасны дугаар оруулна уу")
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!formData.hours) {
+        setFormError("Ажиллах цаг оруулна уу")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Дэлгүүрийн мэдээллийг шинэчлэх
+      const updatedStore: Partial<Store> = {
+        name: formData.name,
+        category: formData.category,
+        description: formData.description,
+        fullDescription: formData.fullDescription,
+        address: formData.address,
+        phone: formData.phone,
+        hours: formData.hours,
+        website: formData.website,
+        location: locationData,
+        mapLink: mapLinkToSave,
+        rating: formData.rating !== undefined ? Number(formData.rating) : 0,
+        reviews: formData.reviews !== undefined ? Number(formData.reviews) : 0,
+        services: services,
+        image: previewImages.length > 0 ? previewImages[0] : undefined,
+        gallery: galleryPreviews,
+      }
+
+      await storeService.updateStore(storeId, updatedStore)
       setToast({
         title: "Амжилттай",
         description: "Дэлгүүрийн мэдээлэл амжилттай шинэчлэгдлээ",
-        variant: "success",
+        variant: "default",
       })
 
       // Дэлгүүрийн жагсаалт руу буцах
@@ -269,7 +325,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Link
-          href={`/admin/stores/${params.id}`}
+          href={`/admin/stores/${storeId}`}
           className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -539,7 +595,7 @@ export default function EditStore({ params }: { params: { id: string } }) {
         </Card>
 
         <div className="flex justify-end gap-4">
-          <Link href={`/admin/stores/${params.id}`}>
+          <Link href={`/admin/stores/${storeId}`}>
             <Button variant="outline" type="button">
               Цуцлах
             </Button>
