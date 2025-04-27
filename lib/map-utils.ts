@@ -65,10 +65,16 @@ export function extractCoordinatesFromMapLink(link: string): { lat: number; lng:
  */
 export function generateMapLink(lat: number, lng: number): string {
   if (!isValidCoordinates(lat, lng)) {
+    console.warn("Invalid coordinates for map link:", { lat, lng })
     return ""
   }
-  // Google Maps-ийн q параметр ашиглан байршлыг илүү нарийвчлан заах
-  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+
+  // Ensure coordinates are properly formatted with fixed precision
+  const formattedLat = Number.parseFloat(lat.toFixed(6))
+  const formattedLng = Number.parseFloat(lng.toFixed(6))
+
+  // Use the most reliable format for Google Maps
+  return `https://www.google.com/maps?q=${formattedLat},${formattedLng}`
 }
 
 /**
@@ -96,10 +102,51 @@ export function formatCoordinates(lat: number, lng: number): string {
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 }
 
-// Add this function to the existing file
+/**
+ * Координатуудыг шалгаж, хэрэв буруу бол засах
+ * Зарим тохиолдолд lat/lng солигдсон байж болно
+ */
+export function normalizeCoordinates(coords: { lat: number; lng: number }): { lat: number; lng: number } {
+  if (!coords || typeof coords.lat !== "number" || typeof coords.lng !== "number") {
+    console.warn("Invalid coordinates object:", coords)
+    // Default to a central location in Ulaanbaatar if coordinates are invalid
+    return { lat: 47.9184676, lng: 106.9177016 }
+  }
+
+  // Check if coordinates are valid
+  if (!isValidCoordinates(coords.lat, coords.lng)) {
+    // Check if they're swapped
+    if (isValidCoordinates(coords.lng, coords.lat)) {
+      console.log("Coordinates appear to be swapped, fixing:", coords)
+      return { lat: coords.lng, lng: coords.lat }
+    } else {
+      console.warn("Invalid coordinates, cannot normalize:", coords)
+      // Default to a central location in Ulaanbaatar
+      return { lat: 47.9184676, lng: 106.9177016 }
+    }
+  }
+
+  // Ensure coordinates have proper precision
+  return {
+    lat: Number.parseFloat(coords.lat.toFixed(6)),
+    lng: Number.parseFloat(coords.lng.toFixed(6)),
+  }
+}
+
+/**
+ * Газрын зургийн холбоосоос embed URL үүсгэх
+ */
 export function getEmbedUrlFromMapLink(mapLink: string): string | null {
   try {
     if (!mapLink) return null
+
+    // Extract coordinates from mapLink if possible
+    const coordinates = extractCoordinatesFromMapLink(mapLink)
+    if (coordinates) {
+      // Normalize coordinates in case they're swapped
+      const normalizedCoords = normalizeCoordinates(coordinates)
+      return `https://www.google.com/maps/embed/v1/place?key=&q=${normalizedCoords.lat},${normalizedCoords.lng}`
+    }
 
     // Try to convert a regular Google Maps URL to an embed URL
     if (mapLink.includes("maps.google.com") || mapLink.includes("google.com/maps")) {
@@ -137,4 +184,73 @@ export function getEmbedUrlFromMapLink(mapLink: string): string | null {
     console.error("Error parsing Google Maps URL:", error)
     return null
   }
+}
+
+/**
+ * Монгол улсын нийслэл Улаанбаатар хотын төвийн координат
+ */
+export const DEFAULT_COORDINATES = {
+  lat: 47.9184676,
+  lng: 106.9177016,
+}
+
+/**
+ * Координатуудыг шалгаж, хэрэв буруу бол анхны утгыг буцаах
+ */
+export function validateCoordinates(coords: { lat?: number; lng?: number } | undefined | null): {
+  lat: number
+  lng: number
+} {
+  if (!coords) {
+    return DEFAULT_COORDINATES
+  }
+
+  const lat = typeof coords.lat === "number" ? coords.lat : DEFAULT_COORDINATES.lat
+  const lng = typeof coords.lng === "number" ? coords.lng : DEFAULT_COORDINATES.lng
+
+  if (!isValidCoordinates(lat, lng)) {
+    // Try swapped coordinates
+    if (isValidCoordinates(lng, lat)) {
+      return { lat: lng, lng: lat }
+    }
+    return DEFAULT_COORDINATES
+  }
+
+  return { lat, lng }
+}
+
+/**
+ * Координатуудаас Google Maps холбоос үүсгэх (сайжруулсан)
+ */
+export function createGoogleMapsUrl(
+  location: { lat?: number; lng?: number } | undefined | null,
+  mapLink?: string,
+): string {
+  // If we have a valid mapLink and no location, use the mapLink
+  if (mapLink && (!location || !location.lat || !location.lng)) {
+    // Try to extract coordinates from the mapLink
+    const extractedCoords = extractCoordinatesFromMapLink(mapLink)
+    if (extractedCoords) {
+      const normalized = normalizeCoordinates(extractedCoords)
+      console.log("Using coordinates extracted from mapLink:", normalized)
+      return generateMapLink(normalized.lat, normalized.lng)
+    }
+
+    // If we couldn't extract coordinates but have a mapLink, use it
+    if (mapLink.includes("maps.google.com") || mapLink.includes("google.com/maps")) {
+      console.log("Using original mapLink:", mapLink)
+      return mapLink
+    }
+  }
+
+  // If we have location coordinates, use them
+  if (location && (typeof location.lat === "number" || typeof location.lng === "number")) {
+    const validCoords = validateCoordinates(location)
+    console.log("Using validated location coordinates:", validCoords)
+    return generateMapLink(validCoords.lat, validCoords.lng)
+  }
+
+  // Default to central Ulaanbaatar
+  console.log("No valid coordinates found, using default location")
+  return generateMapLink(DEFAULT_COORDINATES.lat, DEFAULT_COORDINATES.lng)
 }
