@@ -1,15 +1,41 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { settingsService, type SiteSettings } from "@/lib/db-service"
 
 export function MobileNav() {
   const [open, setOpen] = useState(false)
+  const [settings, setSettings] = useState<SiteSettings | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Тохиргоог авах
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true)
+      const siteSettings = await settingsService.getOrCreateSettings()
+      console.log("Мобайл цэс: Тохиргоо амжилттай авлаа", siteSettings)
+      setSettings(siteSettings)
+    } catch (error) {
+      console.error("Мобайл цэс: Тохиргоо авахад алдаа гарлаа:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  // Логоны URL эсвэл default лого
+  const logoUrl = settings?.logoUrl || settings?.logo || "/shopping-bag-icon.png"
+  // Сайтын нэр эсвэл default нэр
+  const siteName = settings?.siteName || "МонголШоп"
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -22,8 +48,15 @@ export function MobileNav() {
       <SheetContent side="right" className="w-[80%] sm:w-[350px]">
         <div className="flex flex-col gap-6 px-2 py-4">
           <div className="flex items-center gap-2">
-            <Image src="/shopping-bag-icon.png" alt="Logo" width={32} height={32} className="rounded" />
-            <span className="text-xl font-bold">МонголШоп</span>
+            <Image
+              src={logoUrl || "/placeholder.svg"}
+              alt={siteName}
+              width={32}
+              height={32}
+              className="rounded"
+              priority
+            />
+            <span className="text-xl font-bold">{siteName}</span>
           </div>
           <nav className="flex flex-col gap-4">
             <Link
